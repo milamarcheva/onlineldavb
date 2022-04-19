@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, urllib2, re, string, time, threading
-
+import sys,  urllib, urllib3, re, string, time, threading #urllib2,
+import requests
 def get_random_wikipedia_article():
     """
     Downloads a randomly selected Wikipedia article (via
@@ -31,29 +31,55 @@ def get_random_wikipedia_article():
         articletitle = None
         failed = False
         try:
-            req = urllib2.Request('http://en.wikipedia.org/wiki/Special:Random',
-                                  None, { 'User-Agent' : 'x'})
-            f = urllib2.urlopen(req)
+            fp = urllib.request.urlopen('http://en.wikipedia.org/wiki/Special:Random')
+            mybytes = fp.read()
+
+            f = mybytes.decode("utf8").split('\n')
+            fp.close()
+
+            # print(f.split('\n'))
+
+            # r = requests.get('http://en.wikipedia.org/wiki/Special:Random', auth=('user', 'pass'))
+            # f = r.text
+            # fp  = open('http://en.wikipedia.org/wiki/Special:Random', "r")
+            # f = fp.readlines()
+            # http = urllib3.PoolManager()
+            # response = http.request('GET', 'http://en.wikipedia.org/wiki/Special:Random')
+            # f = response.data
+            # req = urllib3.request('http://en.wikipedia.org/wiki/Special:Random',
+            #                       None, { 'User-Agent' : 'x'})
+            # f = urllib3.urlopen(req)
+            i=0
             while not articletitle:
-                line = f.readline()
+                line = f[i]
+                # line = f.readline()
                 result = re.search(r'title="Edit this page" href="/w/index.php\?title=(.*)\&amp;action=edit"/\>', line)
+                i+=1
                 if (result):
                     articletitle = result.group(1)
                     break
                 elif (len(line) < 1):
                     sys.exit(1)
 
-            req = urllib2.Request('http://en.wikipedia.org/w/index.php?title=Special:Export/%s&action=submit' \
-                                      % (articletitle),
-                                  None, { 'User-Agent' : 'x'})
-            f = urllib2.urlopen(req)
-            all = f.read()
-        except (urllib2.HTTPError, urllib2.URLError):
-            print 'oops. there was a failure downloading %s. retrying...' \
-                % articletitle
+            fp = urllib.request.urlopen('http://en.wikipedia.org/w/index.php?title=Special:Export/%s&action=submit') #(articletitle),)
+                                            # None, { 'User-Agent' : 'x'})
+            mybytes = fp.read()
+
+            f = mybytes.decode("utf8")
+            fp.close()
+
+            # req = urllib3.request('http://en.wikipedia.org/w/index.php?title=Special:Export/%s&action=submit' \
+            #                           % (articletitle),
+            #                       None, { 'User-Agent' : 'x'})
+            # f = urllib3.urlopen(req)
+            all = f
+
+        except (urllib3.exceptions.HTTPError): #, urllib3.exceptions.URLError):
+            print('oops. there was a failure downloading %s. retrying...' \
+                % articletitle)
             failed = True
             continue
-        print 'downloaded %s. parsing...' % articletitle
+        print('downloaded %s. parsing...' % articletitle)
 
         try:
             all = re.search(r'<text.*?>(.*)</text', all, flags=re.DOTALL).group(1)
@@ -72,8 +98,8 @@ def get_random_wikipedia_article():
             all = re.sub(r'\&lt;.*?&gt;', '', all)
         except:
             # Something went wrong, try again. (This is bad coding practice.)
-            print 'oops. there was a failure parsing %s. retrying...' \
-                % articletitle
+            print('oops. there was a failure parsing %s. retrying...' \
+                % articletitle)
             failed = True
             continue
 
@@ -102,7 +128,7 @@ def get_random_wikipedia_articles(n):
     WikiThread.articlenames = list()
     wtlist = list()
     for i in range(0, n, maxthreads):
-        print 'downloaded %d/%d articles...' % (i, n)
+        print('downloaded %d/%d articles...' % (i, n))
         for j in range(i, min(i+maxthreads, n)):
             wtlist.append(WikiThread())
             wtlist[len(wtlist)-1].start()
@@ -115,7 +141,7 @@ if __name__ == '__main__':
 
     (articles, articlenames) = get_random_wikipedia_articles(1)
     for i in range(0, len(articles)):
-        print articlenames[i]
+        print(articlenames[i])
 
     t1 = time.time()
-    print 'took %f' % (t1 - t0)
+    print('took %f' % (t1 - t0))

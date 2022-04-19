@@ -20,6 +20,9 @@ import sys, re, time, string
 import numpy as n
 from scipy.special import gammaln, psi
 
+# gammaln: Logarithm of the absolute value of the gamma function.
+# psi: The digamma function. The logarithmic derivative of the gamma function evaluated at z.
+
 import corpus
 
 n.random.seed(100000001)
@@ -70,7 +73,7 @@ def parse_doc_list(docs, vocab):
         docs[d] = re.sub(r'-', ' ', docs[d])
         docs[d] = re.sub(r'[^a-z ]', '', docs[d])
         docs[d] = re.sub(r' +', ' ', docs[d])
-        words = string.split(docs[d])
+        words = docs[d].split()
         ddict = dict()
         for word in words:
             if (word in vocab):
@@ -78,8 +81,8 @@ def parse_doc_list(docs, vocab):
                 if (not wordtoken in ddict):
                     ddict[wordtoken] = 0
                 ddict[wordtoken] += 1
-        wordids.append(ddict.keys())
-        wordcts.append(ddict.values())
+        wordids.append(list(ddict.keys()))
+        wordcts.append(list(ddict.values()))
 
     return((wordids, wordcts))
 
@@ -141,14 +144,13 @@ class OnlineLDA:
         it = 0
         meanchange = 0
         for d in range(0, batchD):
-            print sum(wordcts[d])
             # These are mostly just shorthand (but might help cache locality)
             ids = wordids[d]
             cts = wordcts[d]
             gammad = gamma[d, :]
             Elogthetad = Elogtheta[d, :]
             expElogthetad = expElogtheta[d, :]
-            expElogbetad = self._expElogbeta[:, ids]
+            expElogbetad = self._expElogbeta[:, list(ids)]
             # The optimal phi_{dwk} is proportional to 
             # expElogthetad_k * expElogbetad_w. phinorm is the normalizer.
             phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
@@ -159,8 +161,11 @@ class OnlineLDA:
                 # Substituting the value of the optimal phi back into
                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
                 gammad = self._alpha + expElogthetad * \
-                    n.dot(cts / phinorm, expElogbetad.T)
-                print gammad[:, n.newaxis]
+                    n.dot(\
+                    list(cts) \
+                    / phinorm,\
+                    expElogbetad.T)
+                # print(gammad[:, n.newaxis])
                 Elogthetad = dirichlet_expectation(gammad)
                 expElogthetad = n.exp(Elogthetad)
                 phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
@@ -171,7 +176,7 @@ class OnlineLDA:
             gamma[d, :] = gammad
             # Contribution of document d to the expected sufficient
             # statistics for the M step.
-            sstats[:, ids] += n.outer(expElogthetad.T, cts/phinorm)
+            sstats[:, list(ids)] += n.outer(expElogthetad.T, list(cts)/phinorm)
 
         # This step finishes computing the sufficient statistics for the
         # M step, so that
@@ -421,10 +426,12 @@ class OnlineLDA:
             cts = n.array(wordcts[d])
             phinorm = n.zeros(len(ids))
             for i in range(0, len(ids)):
-                temp = Elogtheta[d, :] + self._Elogbeta[:, ids[i]]
+                temp = Elogtheta[d, :] + self._Elogbeta[:, list(ids)[i]]
                 tmax = max(temp)
                 phinorm[i] = n.log(sum(n.exp(temp - tmax))) + tmax
-            score += n.sum(cts * phinorm)
+
+            intermediate = list(cts) * phinorm
+            score += n.sum(intermediate)
 #             oldphinorm = phinorm
 #             phinorm = n.dot(expElogtheta[d, :], self._expElogbeta[:, ids])
 #             print oldphinorm
@@ -462,7 +469,7 @@ def main():
     model = OnlineLDA(vocab, K, 100000,
                       0.1, 0.01, 1, 0.75)
     for i in range(1000):
-        print i
+        print('Iteration: ', i)
         wordids = [d.words for d in docs.docs[(i*S):((i+1)*S)]]
         wordcts = [d.counts for d in docs.docs[(i*S):((i+1)*S)]]
         model.update_lambda(wordids, wordcts)
